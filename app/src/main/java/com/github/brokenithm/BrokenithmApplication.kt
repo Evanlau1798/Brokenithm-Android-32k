@@ -65,6 +65,8 @@ class BrokenithmApplication : Application() {
     lateinit var gyroAirLowestBound : FloatPreference
     lateinit var gyroAirHighestBound : FloatPreference
     lateinit var accelAirThreshold : FloatPreference
+    lateinit var isKeyInput32k : BooleanPreference
+    lateinit var titleShow : BooleanPreference
 
     override fun onCreate() {
         super.onCreate()
@@ -83,6 +85,8 @@ class BrokenithmApplication : Application() {
         gyroAirLowestBound = FloatPreference(this, "gyro_air_lowest", 0.8f)
         gyroAirHighestBound = FloatPreference(this, "gyro_air_highest", 1.35f)
         accelAirThreshold = FloatPreference(this, "accel_air_threshold", 2f)
+        isKeyInput32k = BooleanPreference(this, "is_key_input_32k", true)
+        titleShow = BooleanPreference(this,"title_show",true)
     }
 
     companion object {

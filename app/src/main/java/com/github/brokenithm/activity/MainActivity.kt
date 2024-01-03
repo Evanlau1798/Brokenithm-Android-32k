@@ -86,6 +86,8 @@ class MainActivity : AppCompatActivity() {
     private var windowWidth = 0f
     private var windowHeight = 0f
     private var mTouchAreaRect: Rect? = null
+    private var isKeyInput32k = true
+    private var titleShow = true
 
     // sensor
     private var mSensorManager: SensorManager? = null
@@ -327,6 +329,38 @@ class MainActivity : AppCompatActivity() {
                 else -> { checkSimpleAir.isEnabled = true; R.string.touch_air }
             })
         }
+        isKeyInput32k = app.isKeyInput32k.value()
+        findViewById<TextView>(R.id.input_switch).apply {
+            setOnClickListener {
+                isKeyInput32k = when (isKeyInput32k) {
+                    true -> {
+                        text = getString(R.string.input_16k)
+                        false
+                    }
+                    false -> {
+                        text = getString(R.string.input_32k)
+                        true
+                    }
+                }
+                app.isKeyInput32k.update(isKeyInput32k)
+            }
+            text = getString(when (isKeyInput32k){
+                true -> R.string.input_32k
+                false -> R.string.input_16k
+            })
+        }
+
+        titleShow = app.titleShow.value()
+        findViewById<TextView>(R.id.title_switch).apply {
+            setOnClickListener {
+                changeTitleVisibility()
+            }
+            text = getString( when (titleShow) {
+                true -> { changeTitleVisibility(false) ; R.string.show_title }
+                false -> { changeTitleVisibility(true) ; R.string.hide_title }
+            })
+        }
+
         checkSimpleAir.apply {
             setOnCheckedChangeListener { _, isChecked ->
                 mSimpleAir = isChecked
@@ -381,7 +415,7 @@ class MainActivity : AppCompatActivity() {
         }
         initTasks()
         //for (id in mButtonIds)
-            //mButtons.add(findViewById(id))
+        //mButtons.add(findViewById(id))
 
         vibratorTask.execute(lifecycleScope)
 
@@ -452,11 +486,14 @@ class MainActivity : AppCompatActivity() {
         buttonWidth = gapWidth * buttonWidthToGap
         //val buttonWidth = windowWidth / numOfButtons
         val buttonBlockWidth = buttonWidth + gapWidth
-        val buttonAreaHeight = windowHeight * 0.5f
-        val airAreaHeight = windowHeight * 0.35f
-        val airBlockHeight = (buttonAreaHeight - airAreaHeight) / numOfAirBlock
 
-        mLEDBitmap = Bitmap.createBitmap(windowWidth.toInt(), buttonAreaHeight.toInt(), Bitmap.Config.RGB_565)
+        val upperButtonAreaHeight = windowHeight * 0.5f
+        val lowerButtonAreaHeight = windowHeight * 0.75f
+
+        val airAreaHeight = windowHeight * 0.35f
+        val airBlockHeight = (upperButtonAreaHeight - airAreaHeight) / numOfAirBlock
+
+        mLEDBitmap = Bitmap.createBitmap(windowWidth.toInt(), upperButtonAreaHeight.toInt(), Bitmap.Config.RGB_565)
         mLEDCanvas = Canvas(mLEDBitmap)
         mButtonRenderer = findViewById(R.id.button_render_area)
         mButtonRenderer.background = BitmapDrawable(resources, mLEDBitmap)
@@ -472,20 +509,29 @@ class MainActivity : AppCompatActivity() {
                 mTouchAreaRect = Rect(arr[0], arr[1], arr[0] + view.width, arr[1] + view.height)
             }
             val currentAirAreaHeight = if (mAirSource != 3) 0f else airAreaHeight
-            val currentButtonAreaHeight = if (mAirSource != 3) 0f else buttonAreaHeight
+            val currentButtonAreaHeight = if (mAirSource != 3) 0f else upperButtonAreaHeight
             val totalTouches = event.pointerCount
             val touchedButtons = HashSet<Int>()
             var thisAirHeight = 6
             var maxTouchedSize = 0f
+            var testIndex = ""
+            var testPointPos = 0f
+
             if (event.action != KeyEvent.ACTION_UP && event.action != MotionEvent.ACTION_CANCEL) {
                 var ignoredIndex = -1
                 if (event.actionMasked == MotionEvent.ACTION_POINTER_UP)
                     ignoredIndex = event.actionIndex
+
+
+
+
                 for (i in 0 until totalTouches) {
                     if (i == ignoredIndex)
                         continue
                     val x = event.getX(i) + mTouchAreaRect!!.left - windowLeft
                     val y = event.getY(i) + mTouchAreaRect!!.top - windowTop
+
+
                     when(y) {
                         in 0f..currentAirAreaHeight -> {
                             thisAirHeight = 0
@@ -544,21 +590,44 @@ class MainActivity : AppCompatActivity() {
                             } else {
                                 if (index > 15) index = 15
                                 var targetIndex = index * 2
-                                if (touchedButtons.contains(targetIndex)) targetIndex++
-                                touchedButtons.add(targetIndex)
-                                if (index > 0) {
-                                    if ((pointPos - index) * 4 < 1) {
-                                        targetIndex = (index - 1) * 2
-                                        if (touchedButtons.contains(targetIndex)) targetIndex++
+                                testIndex = index.toString()
+                                if (isKeyInput32k) {
+                                    var isupper = false
+                                    if (y > lowerButtonAreaHeight) {
                                         touchedButtons.add(targetIndex)
+                                    } else {
+                                        touchedButtons.add(targetIndex + 1)
+                                        isupper = true
                                     }
-                                } else if (index < 31) {
-                                    if ((pointPos - index) * 4 > 3) {
-                                        targetIndex = (index + 1) * 2
-                                        if (touchedButtons.contains(targetIndex)) targetIndex++
-                                        touchedButtons.add(targetIndex)
+                                    testPointPos = pointPos
+                                    if (index > 0) {
+                                        if ((pointPos - index) * 4 < 1.3) {
+                                            targetIndex = if ( isupper ) {
+                                                (index - 1) * 2 + 1
+                                            } else {
+                                                (index - 1) * 2
+                                            }
+                                            touchedButtons.add(targetIndex)
+                                        }
+                                    }
+                                } else {
+                                    if (touchedButtons.contains(targetIndex)) targetIndex++
+                                    touchedButtons.add(targetIndex)
+                                    if (index > 0) {
+                                        if ((pointPos - index) * 4 < 1) {
+                                            targetIndex = (index - 1) * 2
+                                            if (touchedButtons.contains(targetIndex)) targetIndex++
+                                            touchedButtons.add(targetIndex)
+                                        }
+                                    } else if (index < 31) {
+                                        if ((pointPos - index) * 4 > 3) {
+                                            targetIndex = (index + 1) * 2
+                                            if (touchedButtons.contains(targetIndex)) targetIndex++
+                                            touchedButtons.add(targetIndex)
+                                        }
                                     }
                                 }
+
                             }
                         }
                     }
@@ -576,8 +645,11 @@ class MainActivity : AppCompatActivity() {
             if (mAirSource == 3)
                 mCurrentAirHeight = thisAirHeight
             //mInputQueue.add(InputEvent(touchedButtons, mCurrentAirHeight))
-            if (mDebugInfo)
-                textInfo.text = getString(R.string.debug_info, mCurrentAirHeight, touchedButtons.toString(), maxTouchedSize, event.toString())
+            if (mDebugInfo){
+                textInfo.text = getString(R.string.debug_info, mCurrentAirHeight, touchedButtons.toString(), testIndex , testPointPos, maxTouchedSize, event.toString())
+                highlightAreas(touchedButtons)
+            }
+
             view.performClick()
         }
     }
@@ -889,8 +961,8 @@ class MainActivity : AppCompatActivity() {
             val buffer = ByteArray(21)
             byteArrayOf('C'.byte(), 'O'.byte(), 'N'.byte()).copyInto(buffer, 1)
             ByteBuffer.wrap(buffer)
-                    .put(4, if (selfAddress.size == 4) 1.toByte() else 2.toByte())
-                    .putShort(5, serverPort.toShort())
+                .put(4, if (selfAddress.size == 4) 1.toByte() else 2.toByte())
+                .putShort(5, serverPort.toShort())
             selfAddress.copyInto(buffer, 7)
             buffer[0] = (3 + 1 + 2 + selfAddress.size).toByte()
             try {
@@ -1053,7 +1125,7 @@ class MainActivity : AppCompatActivity() {
                 buffer.header = byteArrayOf('I'.byte(), 'P'.byte(), 'T'.byte())
             }
 
-            if (event.keys != null && event.keys.isNotEmpty()) {
+            if (!event.keys.isNullOrEmpty()) {
                 for (i in 0 until 32) {
                     buffer.slider[31 - i] = if (event.keys.contains(i)) 0x80.toByte() else 0x0
                 }
@@ -1104,6 +1176,52 @@ class MainActivity : AppCompatActivity() {
         }
         mButtonRenderer.postInvalidate()
     }
+
+    private fun changeTitleVisibility(stat: Boolean? = null) {
+        val textView = findViewById<TextView>(R.id.text_title)
+        val btnText = findViewById<TextView>(R.id.title_switch)
+
+        if (stat == null) {
+            if (textView.visibility == View.VISIBLE) {
+                textView.visibility = View.INVISIBLE
+                btnText.text = getString(R.string.show_title)
+                app.titleShow.update(true)
+            } else {
+                textView.visibility = View.VISIBLE
+                btnText.text = getString(R.string.hide_title)
+                app.titleShow.update(false)
+            }
+        } else {
+            textView.visibility = if (stat) { app.titleShow.update(false) ; View.VISIBLE } else { app.titleShow.update(true) ; View.INVISIBLE }
+            btnText.text = if (stat) getString(R.string.hide_title) else getString(R.string.show_title)
+        }
+    }
+
+    private fun highlightAreas(areasToHighlight: HashSet<Int>) {
+        val totalColumns = 2
+        val blocksPerColumn = numOfButtons
+        val blockWidth = mLEDBitmap.width / blocksPerColumn
+        val columnHeight = mLEDBitmap.height / totalColumns
+
+        for (i in 0 until (blocksPerColumn * totalColumns)) {
+            val areaNumber = if (i / blocksPerColumn == 0) 2 * (i % blocksPerColumn) + 1 else 2 * (i % blocksPerColumn)
+
+            val column = i / blocksPerColumn
+            val blockIndexInColumn = i % blocksPerColumn
+            val left = blockIndexInColumn * blockWidth.toFloat()
+            val right = left + blockWidth
+            val top = column * columnHeight.toFloat()
+            val bottom = top + columnHeight
+
+            if (areaNumber in areasToHighlight) {
+                mLEDCanvas.drawRect(left, top, right, bottom, 0xffffffff.toPaint())
+            } else {
+                mLEDCanvas.drawRect(left, top, right, bottom, 0xff000000.toPaint())
+            }
+        }
+        mButtonRenderer.postInvalidate()
+    }
+
     private fun Long.toPaint(): Paint = Paint().apply { color = toInt() }
 
     companion object {
